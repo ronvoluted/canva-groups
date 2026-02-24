@@ -1,5 +1,8 @@
 node_modules
 
+# Input
+/data/*
+
 # Output
 .output
 .vercel
