@@ -83,6 +83,12 @@
 	let filtered = $derived(searchResults.list);
 	let searchAutoExpanded = $derived(searchResults.autoExpand);
 
+	let hitCount = $derived.by(() => {
+		const q = searchQuery.trim().toLowerCase();
+		if (!q) return 0;
+		return filtered.filter((sg) => searchableText(sg).toLowerCase().includes(q)).length;
+	});
+
 	// Clean up dismissals for items no longer auto-expanded
 	$effect(() => {
 		const current = searchAutoExpanded;
@@ -217,7 +223,7 @@
 			/>
 			{#if searchQuery.trim()}
 				<p class="result-count">
-					Showing {filtered.length} of {data.supergroups.length} supergroups
+					Found in {hitCount} supergroups
 				</p>
 			{/if}
 		</div>
