@@ -3,7 +3,7 @@ export interface LinkedItem {
 	url?: string;
 }
 
-export interface SuperGroup {
+export interface Supergroup {
 	name: string;
 	url?: string;
 	org: string;

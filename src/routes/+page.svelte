@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { slide } from 'svelte/transition';
-	import type { SuperGroup } from '$lib/types';
+	import type { Supergroup } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -44,7 +44,7 @@
 		return total;
 	}
 
-	function searchableText(sg: SuperGroup): string {
+	function searchableText(sg: Supergroup): string {
 		return [
 			sg.name,
 			sg.org,
@@ -57,15 +57,15 @@
 		].join(' ');
 	}
 
-	function childItemNames(sg: SuperGroup): string[] {
+	function childItemNames(sg: Supergroup): string[] {
 		return [...sg.groups, ...sg.subgroups, ...sg.teams].map((item) => item.name);
 	}
 
 	let searchResults = $derived.by(() => {
 		const q = searchQuery.trim();
-		if (!q) return { list: data.superGroups, autoExpand: new Set<string>() };
+		if (!q) return { list: data.supergroups, autoExpand: new Set<string>() };
 
-		const scored = data.superGroups
+		const scored = data.supergroups
 			.map((sg) => ({ sg, score: fuzzyScore(q, searchableText(sg)) }))
 			.filter((x) => x.score > 0)
 			.sort((a, b) => b.score - a.score);
@@ -203,7 +203,9 @@
 			<h1>Canva Groups</h1>
 			<div class="header-actions">
 				<button class="action-btn" onclick={expandAll} disabled={allExpanded}>Expand All</button>
-				<button class="action-btn" onclick={collapseAll} disabled={allCollapsed}>Collapse All</button>
+				<button class="action-btn" onclick={collapseAll} disabled={allCollapsed}
+					>Collapse All</button
+				>
 			</div>
 		</div>
 		<div class="search-wrapper">
@@ -215,15 +217,15 @@
 			/>
 			{#if searchQuery.trim()}
 				<p class="result-count">
-					Showing {filtered.length} of {data.superGroups.length} super groups
+					Showing {filtered.length} of {data.supergroups.length} supergroups
 				</p>
 			{/if}
 		</div>
 	</header>
 
-	<ul class="super-groups">
+	<ul class="supergroups">
 		{#each filtered as sg (sg.name)}
-			<li class="super-group" class:is-expanded={isExpanded(sg.name)}>
+			<li class="supergroup" class:is-expanded={isExpanded(sg.name)}>
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="sg-header"
@@ -271,7 +273,10 @@
 						{#if sg.aboutUrl}
 							<p class="meta-item">
 								<span class="meta-label">About</span>
-								<span class="meta-text"><a href={sg.aboutUrl} target="_blank" rel="noopener noreferrer">{sg.aboutUrl}</a></span>
+								<span class="meta-text"
+									><a href={sg.aboutUrl} target="_blank" rel="noopener noreferrer">{sg.aboutUrl}</a
+									></span
+								>
 							</p>
 						{/if}
 					</div>
@@ -330,8 +335,8 @@
 												href={team.url}
 												target="_blank"
 												rel="noopener noreferrer">{@html highlight(team.name)}</a
-											>{:else}{@html highlight(team.name)}{/if}{#if i < sg.teams.length - 1}<span class="comma"
-												>,&nbsp;</span
+											>{:else}{@html highlight(team.name)}{/if}{#if i < sg.teams.length - 1}<span
+												class="comma">,&nbsp;</span
 											>{/if}{/each}
 								</p>
 							</div>
@@ -343,7 +348,7 @@
 	</ul>
 
 	{#if filtered.length === 0 && searchQuery.trim()}
-		<p class="no-results">No super groups match your search.</p>
+		<p class="no-results">No Supergroups match your search.</p>
 	{/if}
 </div>
 
@@ -439,6 +444,10 @@
 		box-sizing: border-box;
 	}
 
+	.search-bar::-webkit-search-cancel-button {
+		cursor: pointer;
+	}
+
 	.search-bar:focus {
 		outline: none;
 		border-color: #6366f1;
@@ -451,13 +460,13 @@
 		margin: 0.5rem 0 0;
 	}
 
-	.super-groups {
+	.supergroups {
 		list-style: none;
 		padding: 0;
 		margin: 0;
 	}
 
-	.super-group {
+	.supergroup {
 		background: white;
 		border-radius: 12px;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -466,7 +475,7 @@
 		transition: box-shadow 0.2s;
 	}
 
-	.super-group:hover {
+	.supergroup:hover {
 		box-shadow:
 			0 2px 8px rgba(0, 0, 0, 0.08),
 			0 1px 3px rgba(0, 0, 0, 0.06);
@@ -655,6 +664,11 @@
 	}
 
 	@media (max-width: 640px) {
+		.header-row {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
 		.details-grid {
 			grid-template-columns: 1fr;
 		}

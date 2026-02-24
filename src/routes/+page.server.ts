@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import type { PageServerLoad } from './$types';
-import type { LinkedItem, SuperGroup } from '$lib/types';
+import type { LinkedItem, Supergroup } from '$lib/types';
 
 function unescapeMd(text: string): string {
 	return text.replace(/\\(.)/g, '$1');
@@ -37,6 +37,18 @@ function extractSingleLink(cell: string): { name: string; url?: string } {
 
 function extractText(cell: string): string {
 	return isEmpty(cell) ? '' : unescapeMd(cell.trim());
+}
+
+function extractGoals(cell: string): string {
+	const text = extractText(cell);
+	if (!text) return '';
+	// Goals are concatenated without punctuation. Split at:
+	// 1. After closing paren before uppercase (e.g. "...feedback) Enable...")
+	// 2. Heuristic sentence boundary: lowercase word → uppercase word followed by article/preposition
+	const goals = text.split(
+		/(?<=\))\s+(?=[A-Z])|(?<=[a-z])\s+(?=[A-Z][a-z]+\s+(?:a|an|the|our|their|its|to|into|in|for|from|with)\b)/
+	);
+	return goals.join('. ').replace(/\.?\s*$/, '.');
 }
 
 function extractUrl(cell: string): string | undefined {
@@ -140,14 +152,14 @@ export const load: PageServerLoad = async () => {
 	// Find the first .md file in data/
 	const mdFile = dataFiles.find((f) => f.endsWith('.md'));
 	if (!mdFile) {
-		return { superGroups: [] };
+		return { supergroups: [] };
 	}
 
 	// Parse MD table
 	const mdText = readFileSync(`${dataDir}/${mdFile}`, 'utf-8');
 	const mdLines = mdText.split('\n').filter((l) => l.trim().startsWith('|'));
 	if (mdLines.length < 3) {
-		return { superGroups: [] };
+		return { supergroups: [] };
 	}
 
 	// Parse headers (may be markdown links)
@@ -164,7 +176,7 @@ export const load: PageServerLoad = async () => {
 		: {};
 
 	// Parse data rows (skip header [0] and separator [1])
-	const superGroups: SuperGroup[] = [];
+	const supergroups: Supergroup[] = [];
 
 	for (let i = 2; i < mdLines.length; i++) {
 		const cells = parseMdRow(mdLines[i]);
@@ -176,13 +188,13 @@ export const load: PageServerLoad = async () => {
 		const nameInfo = extractSingleLink(col(row, 'Name'));
 		const orgInfo = extractSingleLink(col(row, 'Org'));
 
-		superGroups.push({
+		supergroups.push({
 			name: nameInfo.name,
 			url: nameInfo.url,
 			org: orgInfo.name,
 			orgUrl: orgInfo.url,
 			mission: extractText(col(row, 'Mission')),
-			goals: extractText(col(row, 'Goals')),
+			goals: extractGoals(col(row, 'Goals')),
 			vision: visionMap[nameInfo.name] || '',
 			aboutUrl: extractUrl(col(row, 'About Us URL', 'About URL', 'About')),
 			groups: extractLinkedItems(col(row, 'Groups')),
@@ -191,7 +203,7 @@ export const load: PageServerLoad = async () => {
 		});
 	}
 
-	superGroups.sort((a, b) => a.name.localeCompare(b.name));
+	supergroups.sort((a, b) => a.name.localeCompare(b.name));
 
-	return { superGroups };
+	return { supergroups };
 };
