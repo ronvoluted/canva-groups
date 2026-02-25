@@ -23,8 +23,8 @@
 <div class="overlay">
 	<div class="modal">
 		<div class="lock">&#128274;</div>
-		<h2>Canva Frontenders</h2>
-		<p>Enter password to view the dashboard</p>
+		<h2>Canva Groups</h2>
+		<p>Enter password to view the list</p>
 
 		<form onsubmit={handleSubmit}>
 			<input
@@ -62,7 +62,9 @@
 	.modal {
 		background: var(--color-surface);
 		border-radius: var(--radius);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.12),
+			0 2px 8px rgba(0, 0, 0, 0.06);
 		padding: 40px;
 		width: 100%;
 		max-width: 380px;
@@ -77,7 +79,7 @@
 	h2 {
 		font-size: 1.4rem;
 		font-weight: 800;
-		background: linear-gradient(135deg, #7B2FF7 0%, #00B8A9 100%);
+		background: linear-gradient(135deg, #7b2ff7 0%, #00b8a9 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		background-clip: text;
@@ -124,7 +126,7 @@
 
 	button {
 		padding: 10px 20px;
-		background: linear-gradient(135deg, #7B2FF7 0%, #6D28D9 100%);
+		background: linear-gradient(135deg, #7b2ff7 0%, #6d28d9 100%);
 		color: white;
 		border: none;
 		border-radius: var(--radius-sm);
