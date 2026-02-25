@@ -3,6 +3,10 @@ export interface LinkedItem {
 	url?: string;
 }
 
+export interface GroupsData {
+	supergroups: Supergroup[];
+}
+
 export interface Supergroup {
 	name: string;
 	url?: string;

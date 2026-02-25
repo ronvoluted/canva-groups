@@ -1,6 +1,8 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
-import type { PageServerLoad } from './$types';
-import type { LinkedItem, Supergroup } from '$lib/types';
+import { join } from 'path';
+import type { GroupsData, LinkedItem, Supergroup } from '$lib/types';
+
+const DATA_DIR = join(process.cwd(), 'data');
 
 function unescapeMd(text: string): string {
 	return text.replace(/\\(.)/g, '$1');
@@ -42,9 +44,6 @@ function extractText(cell: string): string {
 function extractGoals(cell: string): string {
 	const text = extractText(cell);
 	if (!text) return '';
-	// Goals are concatenated without punctuation. Split at:
-	// 1. After closing paren before uppercase (e.g. "...feedback) Enable...")
-	// 2. Heuristic sentence boundary: lowercase word → uppercase word followed by article/preposition
 	const goals = text.split(
 		/(?<=\))\s+(?=[A-Z])|(?<=[a-z])\s+(?=[A-Z][a-z]+\s+(?:a|an|the|our|their|its|to|into|in|for|from|with)\b)/
 	);
@@ -65,7 +64,6 @@ function parseMdRow(line: string): string[] {
 		.map((s) => s.trim());
 }
 
-/** CSV row parser — handles quoted fields with commas and newlines inside. */
 function parseCSVRow(row: string): string[] {
 	const fields: string[] = [];
 	let current = '';
@@ -99,7 +97,6 @@ function parseCSVRow(row: string): string[] {
 	return fields;
 }
 
-/** Case-insensitive column lookup with fallback names. */
 function col(row: Record<string, string>, ...names: string[]): string {
 	for (const name of names) {
 		const lower = name.toLowerCase();
@@ -112,10 +109,6 @@ function col(row: Record<string, string>, ...names: string[]): string {
 	return '';
 }
 
-/**
- * Parse a CSV and build a lookup from one column to another.
- * Returns empty map if file missing or columns not found.
- */
 function buildCsvLookup(
 	path: string,
 	keyCol: string,
@@ -143,39 +136,39 @@ function buildCsvLookup(
 	return map;
 }
 
-export const prerender = true;
+let cached: GroupsData | null = null;
 
-export const load: PageServerLoad = async () => {
-	const dataDir = 'data';
-	const dataFiles = readdirSync(dataDir);
+export function loadGroupsData(): GroupsData {
+	if (cached) {
+		return cached;
+	}
 
-	// Find the first .md file in data/
+	const dataFiles = readdirSync(DATA_DIR);
+
 	const mdFile = dataFiles.find((f) => f.endsWith('.md'));
 	if (!mdFile) {
-		return { supergroups: [] };
+		cached = { supergroups: [] };
+		return cached;
 	}
 
-	// Parse MD table
-	const mdText = readFileSync(`${dataDir}/${mdFile}`, 'utf-8');
+	const mdText = readFileSync(join(DATA_DIR, mdFile), 'utf-8');
 	const mdLines = mdText.split('\n').filter((l) => l.trim().startsWith('|'));
 	if (mdLines.length < 3) {
-		return { supergroups: [] };
+		cached = { supergroups: [] };
+		return cached;
 	}
 
-	// Parse headers (may be markdown links)
 	const headerCells = parseMdRow(mdLines[0]);
 	const headers = headerCells.map((c) => {
 		const m = c.match(/\[([^\]]+)\]/);
 		return m ? m[1] : c.trim();
 	});
 
-	// Supplement with CSV if one exists (for columns the MD lacks, e.g. vision)
 	const csvFile = dataFiles.find((f) => f.endsWith('.csv'));
 	const visionMap = csvFile
-		? buildCsvLookup(`${dataDir}/${csvFile}`, 'name', 'vision')
+		? buildCsvLookup(join(DATA_DIR, csvFile), 'name', 'vision')
 		: {};
 
-	// Parse data rows (skip header [0] and separator [1])
 	const supergroups: Supergroup[] = [];
 
 	for (let i = 2; i < mdLines.length; i++) {
@@ -205,5 +198,6 @@ export const load: PageServerLoad = async () => {
 
 	supergroups.sort((a, b) => a.name.localeCompare(b.name));
 
-	return { supergroups };
-};
+	cached = { supergroups };
+	return cached;
+}

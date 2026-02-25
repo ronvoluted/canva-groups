@@ -1,13 +1,42 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import type { Supergroup } from '$lib/types';
-	import type { PageData } from './$types';
+	import PasswordModal from '$lib/components/PasswordModal.svelte';
 
-	let { data }: { data: PageData } = $props();
+	let supergroups: Supergroup[] | null = $state(null);
+	let showModal = $state(true);
 
 	let searchQuery = $state('');
 	let expanded: Record<string, boolean> = $state({});
 	let autoExpandDismissed: Record<string, boolean> = $state({});
+
+	async function authenticate(password: string): Promise<boolean> {
+		try {
+			const res = await fetch('/api/data', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ password })
+			});
+
+			if (!res.ok) return false;
+
+			const data = await res.json();
+			supergroups = data.supergroups;
+			showModal = false;
+			sessionStorage.setItem('pw', password);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	onMount(() => {
+		const cached = sessionStorage.getItem('pw');
+		if (cached) {
+			authenticate(cached);
+		}
+	});
 
 	function charFuzzyScore(query: string, text: string): number {
 		let qi = 0;
@@ -62,10 +91,11 @@
 	}
 
 	let searchResults = $derived.by(() => {
+		if (!supergroups) return { list: [], autoExpand: new Set<string>() };
 		const q = searchQuery.trim();
-		if (!q) return { list: data.supergroups, autoExpand: new Set<string>() };
+		if (!q) return { list: supergroups, autoExpand: new Set<string>() };
 
-		const scored = data.supergroups
+		const scored = supergroups
 			.map((sg) => ({ sg, score: fuzzyScore(q, searchableText(sg)) }))
 			.filter((x) => x.score > 0)
 			.sort((a, b) => b.score - a.score);
@@ -85,11 +115,10 @@
 
 	let hitCount = $derived.by(() => {
 		const q = searchQuery.trim().toLowerCase();
-		if (!q) return 0;
+		if (!q || !supergroups) return 0;
 		return filtered.filter((sg) => searchableText(sg).toLowerCase().includes(q)).length;
 	});
 
-	// Clean up dismissals for items no longer auto-expanded
 	$effect(() => {
 		const current = searchAutoExpanded;
 		for (const name of Object.keys(autoExpandDismissed)) {
@@ -149,13 +178,11 @@
 		const w = word.toLowerCase();
 		const t = text.toLowerCase();
 
-		// Prefer substring match (contiguous)
 		const subIdx = t.indexOf(w);
 		if (subIdx !== -1) {
 			return Array.from({ length: w.length }, (_, i) => subIdx + i);
 		}
 
-		// Fuzzy character match
 		const indices: number[] = [];
 		let wi = 0;
 		for (let ti = 0; ti < t.length && wi < w.length; ti++) {
@@ -203,160 +230,197 @@
 	<title>Canva Groups</title>
 </svelte:head>
 
-<div class="container">
-	<header>
-		<div class="header-row">
-			<h1>Canva Groups</h1>
-			<div class="header-actions">
-				<button class="action-btn" onclick={expandAll} disabled={allExpanded}>Expand All</button>
-				<button class="action-btn" onclick={collapseAll} disabled={allCollapsed}
-					>Collapse All</button
-				>
-			</div>
-		</div>
-		<div class="search-wrapper">
-			<input
-				type="search"
-				placeholder="Search groups, teams, missions..."
-				bind:value={searchQuery}
-				class="search-bar"
-			/>
-			{#if searchQuery.trim()}
-				<p class="result-count">
-					Found in {hitCount} supergroups
-				</p>
-			{/if}
-		</div>
-	</header>
+{#if showModal}
+	<PasswordModal onsubmit={authenticate} />
+{/if}
 
-	<ul class="supergroups">
-		{#each filtered as sg (sg.name)}
-			<li class="supergroup" class:is-expanded={isExpanded(sg.name)}>
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					class="sg-header"
-					onclick={() => toggle(sg.name)}
-					onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(sg.name)}
-					role="button"
-					tabindex="0"
-				>
-					<span class="chevron"></span>
-					<span class="sg-title">
-						{#if sg.url}
-							<a
-								href={sg.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								onclick={(e) => e.stopPropagation()}>{@html highlight(sg.name)}</a
-							>
-						{:else}
-							{@html highlight(sg.name)}
-						{/if}
-						<span class="sg-org">({@html highlight(sg.org)})</span>
-					</span>
+{#if supergroups}
+	<div class="container">
+		<header>
+			<div class="header-row">
+				<h1>Canva Groups</h1>
+				<div class="header-actions">
+					<button class="action-btn" onclick={expandAll} disabled={allExpanded}>Expand All</button>
+					<button class="action-btn" onclick={collapseAll} disabled={allCollapsed}
+						>Collapse All</button
+					>
 				</div>
+			</div>
+			<div class="search-wrapper">
+				<input
+					type="search"
+					placeholder="Search groups, teams, missions..."
+					bind:value={searchQuery}
+					class="search-bar"
+				/>
+				{#if searchQuery.trim()}
+					<p class="result-count">
+						Found in {hitCount} supergroups
+					</p>
+				{/if}
+			</div>
+		</header>
 
-				{#if sg.mission || sg.vision || sg.goals || sg.aboutUrl}
-					<div class="sg-meta">
-						{#if sg.mission}
-							<p class="meta-item">
-								<span class="meta-label">Mission</span>
-								<span class="meta-text">{@html highlight(sg.mission)}</span>
-							</p>
-						{/if}
-						{#if sg.vision}
-							<p class="meta-item">
-								<span class="meta-label">Vision</span>
-								<span class="meta-text">{@html highlight(sg.vision)}</span>
-							</p>
-						{/if}
-						{#if sg.goals}
-							<p class="meta-item">
-								<span class="meta-label">Goals</span>
-								<span class="meta-text">{@html highlight(sg.goals)}</span>
-							</p>
-						{/if}
-						{#if sg.aboutUrl}
-							<p class="meta-item">
-								<span class="meta-label">About</span>
-								<span class="meta-text"
-									><a href={sg.aboutUrl} target="_blank" rel="noopener noreferrer">{sg.aboutUrl}</a
-									></span
+		<ul class="supergroups">
+			{#each filtered as sg (sg.name)}
+				<li class="supergroup" class:is-expanded={isExpanded(sg.name)}>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="sg-header"
+						onclick={() => toggle(sg.name)}
+						onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(sg.name)}
+						role="button"
+						tabindex="0"
+					>
+						<span class="chevron"></span>
+						<span class="sg-title">
+							{#if sg.url}
+								<a
+									href={sg.url}
+									target="_blank"
+									rel="noopener noreferrer"
+									onclick={(e) => e.stopPropagation()}>{@html highlight(sg.name)}</a
 								>
-							</p>
-						{/if}
+							{:else}
+								{@html highlight(sg.name)}
+							{/if}
+							<span class="sg-org">({@html highlight(sg.org)})</span>
+						</span>
 					</div>
-				{/if}
 
-				{#if isExpanded(sg.name)}
-					<div class="sg-details" transition:slide={{ duration: 200 }}>
-						<div class="details-grid">
-							<div class="column">
-								<h3>Groups</h3>
-								{#if sg.groups.length > 0}
-									<ul>
-										{#each sg.groups as group}
-											<li>
-												{#if group.url}
-													<a href={group.url} target="_blank" rel="noopener noreferrer"
-														>{@html highlight(group.name)}</a
-													>
-												{:else}
-													{@html highlight(group.name)}
-												{/if}
-											</li>
-										{/each}
-									</ul>
-								{:else}
-									<p class="empty">None</p>
-								{/if}
-							</div>
-							<div class="column">
-								<h3>Subgroups</h3>
-								{#if sg.subgroups.length > 0}
-									<ul>
-										{#each sg.subgroups as subgroup}
-											<li>
-												{#if subgroup.url}
-													<a href={subgroup.url} target="_blank" rel="noopener noreferrer"
-														>{@html highlight(subgroup.name)}</a
-													>
-												{:else}
-													{@html highlight(subgroup.name)}
-												{/if}
-											</li>
-										{/each}
-									</ul>
-								{:else}
-									<p class="empty">None</p>
-								{/if}
-							</div>
-						</div>
-
-						{#if sg.teams.length > 0}
-							<div class="teams-section">
-								<h3>Teams</h3>
-								<p class="teams-list">
-									{#each sg.teams as team, i}{#if team.url}<a
-												href={team.url}
-												target="_blank"
-												rel="noopener noreferrer">{@html highlight(team.name)}</a
-											>{:else}{@html highlight(team.name)}{/if}{#if i < sg.teams.length - 1}<span
-												class="comma">,&nbsp;</span
-											>{/if}{/each}
+					{#if sg.mission || sg.vision || sg.goals || sg.aboutUrl}
+						<div class="sg-meta">
+							{#if sg.mission}
+								<p class="meta-item">
+									<span class="meta-label">Mission</span>
+									<span class="meta-text">{@html highlight(sg.mission)}</span>
 								</p>
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</li>
-		{/each}
-	</ul>
+							{/if}
+							{#if sg.vision}
+								<p class="meta-item">
+									<span class="meta-label">Vision</span>
+									<span class="meta-text">{@html highlight(sg.vision)}</span>
+								</p>
+							{/if}
+							{#if sg.goals}
+								<p class="meta-item">
+									<span class="meta-label">Goals</span>
+									<span class="meta-text">{@html highlight(sg.goals)}</span>
+								</p>
+							{/if}
+							{#if sg.aboutUrl}
+								<p class="meta-item">
+									<span class="meta-label">About</span>
+									<span class="meta-text"
+										><a href={sg.aboutUrl} target="_blank" rel="noopener noreferrer">{sg.aboutUrl}</a
+										></span
+									>
+								</p>
+							{/if}
+						</div>
+					{/if}
 
-	{#if filtered.length === 0 && searchQuery.trim()}
-		<p class="no-results">No Supergroups match your search.</p>
-	{/if}
-</div>
+					{#if isExpanded(sg.name)}
+						<div class="sg-details" transition:slide={{ duration: 200 }}>
+							<div class="details-grid">
+								<div class="column">
+									<h3>Groups</h3>
+									{#if sg.groups.length > 0}
+										<ul>
+											{#each sg.groups as group}
+												<li>
+													{#if group.url}
+														<a href={group.url} target="_blank" rel="noopener noreferrer"
+															>{@html highlight(group.name)}</a
+														>
+													{:else}
+														{@html highlight(group.name)}
+													{/if}
+												</li>
+											{/each}
+										</ul>
+									{:else}
+										<p class="empty">None</p>
+									{/if}
+								</div>
+								<div class="column">
+									<h3>Subgroups</h3>
+									{#if sg.subgroups.length > 0}
+										<ul>
+											{#each sg.subgroups as subgroup}
+												<li>
+													{#if subgroup.url}
+														<a href={subgroup.url} target="_blank" rel="noopener noreferrer"
+															>{@html highlight(subgroup.name)}</a
+														>
+													{:else}
+														{@html highlight(subgroup.name)}
+													{/if}
+												</li>
+											{/each}
+										</ul>
+									{:else}
+										<p class="empty">None</p>
+									{/if}
+								</div>
+							</div>
+
+							{#if sg.teams.length > 0}
+								<div class="teams-section">
+									<h3>Teams</h3>
+									<p class="teams-list">
+										{#each sg.teams as team, i}{#if team.url}<a
+													href={team.url}
+													target="_blank"
+													rel="noopener noreferrer">{@html highlight(team.name)}</a
+												>{:else}{@html highlight(team.name)}{/if}{#if i < sg.teams.length - 1}<span
+													class="comma">,&nbsp;</span
+												>{/if}{/each}
+									</p>
+								</div>
+							{/if}
+						</div>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+
+		{#if filtered.length === 0 && searchQuery.trim()}
+			<p class="no-results">No Supergroups match your search.</p>
+		{/if}
+	</div>
+{:else}
+	<div class="container">
+		<header>
+			<div class="header-row">
+				<div class="skel skel-title"></div>
+				<div class="header-actions">
+					<div class="skel skel-btn"></div>
+					<div class="skel skel-btn"></div>
+				</div>
+			</div>
+			<div class="skel skel-search"></div>
+		</header>
+
+		<ul class="supergroups">
+			{#each Array(8) as _, i}
+				<li class="supergroup skeleton-card">
+					<div class="sg-header">
+						<div class="skel skel-chevron"></div>
+						<div class="skel-row">
+							<div class="skel skel-name" style="width: {55 + (i * 17) % 30}%"></div>
+							<div class="skel skel-org"></div>
+						</div>
+					</div>
+					<div class="sg-meta">
+						<div class="skel skel-meta-line" style="width: {70 + (i * 13) % 25}%"></div>
+						<div class="skel skel-meta-line" style="width: {50 + (i * 19) % 35}%"></div>
+					</div>
+				</li>
+			{/each}
+		</ul>
+	</div>
+{/if}
 
 <style>
 	:global(mark) {
@@ -667,6 +731,72 @@
 		color: #9ca3af;
 		font-size: 1.05rem;
 		padding: 3rem 0;
+	}
+
+	/* Skeleton styles */
+	@keyframes shimmer {
+		0% { background-position: -400px 0; }
+		100% { background-position: 400px 0; }
+	}
+
+	.skel {
+		background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+		background-size: 800px 100%;
+		animation: shimmer 1.5s infinite ease-in-out;
+		border-radius: 6px;
+	}
+
+	.skel-title {
+		width: 180px;
+		height: 28px;
+	}
+
+	.skel-btn {
+		width: 80px;
+		height: 30px;
+		border-radius: 8px;
+	}
+
+	.skel-search {
+		width: 100%;
+		height: 46px;
+		border-radius: 12px;
+	}
+
+	.skeleton-card .sg-header {
+		cursor: default;
+	}
+
+	.skeleton-card .sg-header:hover {
+		background: transparent;
+	}
+
+	.skel-chevron {
+		width: 12px;
+		height: 12px;
+		flex-shrink: 0;
+		border-radius: 2px;
+	}
+
+	.skel-row {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.skel-name {
+		height: 18px;
+	}
+
+	.skel-org {
+		width: 60px;
+		height: 14px;
+	}
+
+	.skel-meta-line {
+		height: 12px;
+		margin-bottom: 0.4rem;
 	}
 
 	@media (max-width: 640px) {
