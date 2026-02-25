@@ -1,8 +1,6 @@
-import { readFileSync, existsSync, readdirSync } from 'fs';
-import { join } from 'path';
+import mdRaw from '../../../data/canvaworld-supergroups.md?raw';
+import csvRaw from '../../../data/canvaworld-supergroups.csv?raw';
 import type { GroupsData, LinkedItem, Supergroup } from '$lib/types';
-
-const DATA_DIR = join(process.cwd(), 'data');
 
 function unescapeMd(text: string): string {
 	return text.replace(/\\(.)/g, '$1');
@@ -110,14 +108,11 @@ function col(row: Record<string, string>, ...names: string[]): string {
 }
 
 function buildCsvLookup(
-	path: string,
+	text: string,
 	keyCol: string,
 	valueCol: string
 ): Record<string, string> {
 	const map: Record<string, string> = {};
-	if (!existsSync(path)) return map;
-
-	const text = readFileSync(path, 'utf-8');
 	const rows = text.split(/\r?\n/);
 	if (rows.length < 2) return map;
 
@@ -143,16 +138,7 @@ export function loadGroupsData(): GroupsData {
 		return cached;
 	}
 
-	const dataFiles = readdirSync(DATA_DIR);
-
-	const mdFile = dataFiles.find((f) => f.endsWith('.md'));
-	if (!mdFile) {
-		cached = { supergroups: [] };
-		return cached;
-	}
-
-	const mdText = readFileSync(join(DATA_DIR, mdFile), 'utf-8');
-	const mdLines = mdText.split('\n').filter((l) => l.trim().startsWith('|'));
+	const mdLines = mdRaw.split('\n').filter((l) => l.trim().startsWith('|'));
 	if (mdLines.length < 3) {
 		cached = { supergroups: [] };
 		return cached;
@@ -164,10 +150,7 @@ export function loadGroupsData(): GroupsData {
 		return m ? m[1] : c.trim();
 	});
 
-	const csvFile = dataFiles.find((f) => f.endsWith('.csv'));
-	const visionMap = csvFile
-		? buildCsvLookup(join(DATA_DIR, csvFile), 'name', 'vision')
-		: {};
+	const visionMap = buildCsvLookup(csvRaw, 'name', 'vision');
 
 	const supergroups: Supergroup[] = [];
 
